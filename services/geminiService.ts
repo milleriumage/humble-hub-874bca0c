@@ -1,15 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 import { AIPersonality, Message, AIProvider, Bot } from '../types';
 
-// IMPORTANT: This is a placeholder for the real API key.
-// In a real application, this should be handled securely.
-const DUMMY_API_KEY = "YOUR_API_KEY_HERE";
-if (!process.env.API_KEY) {
-  // @ts-ignore
-  process.env.API_KEY = DUMMY_API_KEY;
-}
+// Get API key from environment variables (Vite format)
+const getApiKey = (): string => {
+  // Try to get from Vite env first
+  const viteKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (viteKey) return viteKey;
+  
+  // Fallback to process.env for compatibility
+  const processKey = (process as any).env?.GEMINI_API_KEY;
+  if (processKey) return processKey;
+  
+  // Return empty string if no key found (will use mock responses)
+  return "";
+};
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const API_KEY = getApiKey();
+const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
 
 const generatePrompt = (personality: AIPersonality, history: Message[], botName: string): string => {
     const historyText = history
@@ -44,8 +51,11 @@ export const generateBotResponse = async (
 ): Promise<string> => {
     const mockResponses = ["lol that's funny", "idk", "cool", "what do you mean?", "nice outfit!"];
 
-    if (provider === 'gpt' || !process.env.API_KEY || process.env.API_KEY === DUMMY_API_KEY) {
-        if(provider === 'gemini') console.warn("Gemini API key is not set. Using mock response.");
+    // Use mock responses if no AI client available or GPT selected
+    if (provider === 'gpt' || !ai || !API_KEY) {
+        if (provider === 'gemini' && !API_KEY) {
+            console.warn("⚠️ Gemini API key not set. Using mock responses. Set VITE_GEMINI_API_KEY in your environment.");
+        }
         await new Promise(res => setTimeout(res, 500 + Math.random() * 500));
         return mockResponses[Math.floor(Math.random() * mockResponses.length)];
     }
