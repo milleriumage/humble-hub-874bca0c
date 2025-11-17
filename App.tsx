@@ -52,7 +52,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-background text-text-primary">
+        <div className="flex h-screen" style={{ background: '#1a1a1a', color: '#fff' }}>
             {bots.map(bot => bot.status === 'online' && <BotController key={bot.id} botId={bot.id} />)}
             
             <LoginModal
