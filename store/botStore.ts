@@ -26,10 +26,10 @@ interface BotState {
     toggleBotAi: (botId: string) => void;
     
     fetchAvailableRooms: (botId: string) => void;
-    joinRoom: (botId: string, roomName: string) => void;
-    leaveRoom: (botId: string, roomId: string) => void;
+    joinRoom: (botId: string, roomName: string) => Promise<void>;
+    leaveRoom: (botId: string, roomId: string) => Promise<void>;
     
-    sendMessage: (botId: string, roomId: string, text: string) => void;
+    sendMessage: (botId: string, roomId: string, text: string) => Promise<void>;
     addMessage: (message: Message) => void;
     addLog: (log: string) => void;
     addUserToRoom: (roomId: string, user: RoomUser) => void;
@@ -184,11 +184,11 @@ export const useBotStore = create<BotState>((set, get) => ({
         set({ availableRooms: rooms });
     },
 
-    joinRoom: (botId, roomName) => {
+    joinRoom: async (botId, roomName) => {
         const bot = get().bots.find(b => b.id === botId);
         if(!bot || bot.status === 'offline') return;
 
-        const roomId = imvuService.joinRoom(bot.id, roomName);
+        const roomId = await imvuService.joinRoom(bot.id, roomName);
         if (!roomId) return; // Join room failed
 
         set(state => {
@@ -204,19 +204,18 @@ export const useBotStore = create<BotState>((set, get) => ({
         });
     },
 
-    leaveRoom: (botId, roomId) => {
-        imvuService.leaveRoom(botId, roomId);
+    leaveRoom: async (botId, roomId) => {
+        await imvuService.leaveRoom(botId, roomId);
         set(state => ({
             bots: state.bots.map(b => b.id === botId ? { ...b, activeRoomIds: b.activeRoomIds.filter(id => id !== roomId) } : b),
             activeRoomId: state.activeRoomId === roomId ? null : state.activeRoomId
         }));
     },
 
-    sendMessage: (botId, roomId, text) => {
+    sendMessage: async (botId, roomId, text) => {
         const bot = get().bots.find(b => b.id === botId);
         if (!bot) return;
-        // FIX: The `sendMessage` function expected 3 arguments but was called with 4. The extra `bot.name` argument has been removed.
-        imvuService.sendMessage(botId, roomId, text);
+        await imvuService.sendMessage(botId, roomId, text);
     },
 
     addMessage: (message) => set(state => {
