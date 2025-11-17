@@ -33,11 +33,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, botName, onLogin
     }, [isOpen]);
 
     const handleLogin = async () => {
+        console.log('[LoginModal] Attempting login for:', username);
         setIsLoading(true);
         setError(null);
-        const success = await onLogin(username, password);
-        if (!success) {
-            setError('Login failed. Please check credentials.');
+        try {
+            const success = await onLogin(username, password);
+            console.log('[LoginModal] Login result:', success);
+            if (!success) {
+                setError('Login failed. Please check credentials and backend connection.');
+                setIsLoading(false);
+            }
+        } catch (err: any) {
+            console.error('[LoginModal] Login error:', err);
+            setError(`Login error: ${err.message || 'Unknown error'}`);
             setIsLoading(false);
         }
     };
