@@ -5,8 +5,24 @@ type LogCallback = (log: string) => void;
 type UserJoinedCallback = (roomId: string, user: RoomUser) => void;
 type UserLeftCallback = (roomId: string, userId: string, userName: string) => void;
 
-const BACKEND_URL = 'http://localhost:3001';
-const WS_URL = 'ws://localhost:3001/ws';
+// Resolve backend URL from env or localStorage
+const getBackendUrl = (): string => {
+  const envUrl = (import.meta as any).env?.VITE_BACKEND_URL;
+  const lsUrl = typeof window !== 'undefined' ? localStorage.getItem('BACKEND_URL') : null;
+  return (envUrl || lsUrl || '').trim();
+};
+
+const toWsUrl = (httpUrl: string): string => {
+  if (!httpUrl) return '';
+  try {
+    const url = new URL(httpUrl);
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.pathname = url.pathname.replace(/\/$/, '') + '/ws';
+    return url.toString();
+  } catch {
+    return '';
+  }
+};
 
 class ImvuService {
     private messageCallback: MessageCallback | null = null;
@@ -14,14 +30,24 @@ class ImvuService {
     private userJoinedCallback: UserJoinedCallback | null = null;
     private userLeftCallback: UserLeftCallback | null = null;
     private ws: WebSocket | null = null;
+    private reconnectTimer: any = null;
 
     constructor() {
         this.connectWebSocket();
     }
 
+    private get BACKEND_URL() { return getBackendUrl(); }
+    private get WS_URL() { return toWsUrl(this.BACKEND_URL); }
+
     private connectWebSocket() {
+        const wsUrl = this.WS_URL;
+        if (!wsUrl) {
+            this.log('[WebSocket] Backend URL not configured. Set VITE_BACKEND_URL or localStorage.BACKEND_URL (e.g., https://xxx.ngrok-free.app)');
+            return;
+        }
+
         try {
-            this.ws = new WebSocket(WS_URL);
+            this.ws = new WebSocket(wsUrl);
 
             this.ws.onopen = () => {
                 this.log('[WebSocket] Connected to backend server');
@@ -46,18 +72,17 @@ class ImvuService {
                 }
             };
 
-            this.ws.onerror = (error) => {
+            this.ws.onerror = () => {
                 this.log('[WebSocket] Error connecting to backend');
-                console.error('WebSocket error:', error);
             };
 
             this.ws.onclose = () => {
-                this.log('[WebSocket] Disconnected from backend. Reconnecting in 3s...');
-                setTimeout(() => this.connectWebSocket(), 3000);
+                this.log('[WebSocket] Disconnected. Reconnecting in 3s...');
+                this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 3000);
             };
         } catch (error) {
-            this.log('[WebSocket] Failed to connect. Make sure backend is running on port 3001');
-            console.error('WebSocket connection error:', error);
+            this.log('[WebSocket] Failed to connect. Check backend URL.');
+            console.error('WebSocket error:', error);
         }
     }
 
@@ -72,10 +97,15 @@ class ImvuService {
             return false;
         }
 
+        if (!this.BACKEND_URL) {
+            this.log(`[${username}] Backend URL not configured.`);
+            return false;
+        }
+
         try {
             this.log(`[${username}] Attempting to login via backend...`);
             
-            const response = await fetch(`${BACKEND_URL}/login`, {
+            const response = await fetch(`${this.BACKEND_URL}/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -100,8 +130,9 @@ class ImvuService {
     }
 
     public async logout(botId: string): Promise<void> {
+        if (!this.BACKEND_URL) return;
         try {
-            await fetch(`${BACKEND_URL}/bots/${botId}/logout`, {
+            await fetch(`${this.BACKEND_URL}/bots/${botId}/logout`, {
                 method: 'POST'
             });
             this.log(`[${botId}] Logged out`);
@@ -112,10 +143,11 @@ class ImvuService {
     }
 
     public async getRooms(botId: string): Promise<{id: string, name: string}[]> {
+        if (!this.BACKEND_URL) return [];
         try {
             this.log(`[${botId}] Fetching public rooms...`);
             
-            const response = await fetch(`${BACKEND_URL}/bots/${botId}/rooms/search`);
+            const response = await fetch(`${this.BACKEND_URL}/bots/${botId}/rooms/search`);
             const data = await response.json();
 
             if (!response.ok || !data.success) {
@@ -135,10 +167,11 @@ class ImvuService {
     }
 
     public async joinRoom(botId: string, roomName: string): Promise<string | null> {
+        if (!this.BACKEND_URL) return null;
         try {
             this.log(`[${botId}] Joining room: ${roomName}...`);
             
-            const response = await fetch(`${BACKEND_URL}/bots/${botId}/rooms/join`, {
+            const response = await fetch(`${this.BACKEND_URL}/bots/${botId}/rooms/join`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -162,8 +195,9 @@ class ImvuService {
     }
 
     public async leaveRoom(botId: string, roomId: string): Promise<void> {
+        if (!this.BACKEND_URL) return;
         try {
-            await fetch(`${BACKEND_URL}/bots/${botId}/rooms/${roomId}/leave`, {
+            await fetch(`${this.BACKEND_URL}/bots/${botId}/rooms/${roomId}/leave`, {
                 method: 'POST'
             });
             this.log(`[${botId}] Left room ${roomId}`);
@@ -174,8 +208,9 @@ class ImvuService {
     }
 
     public async sendMessage(botId: string, roomId: string, text: string): Promise<void> {
+        if (!this.BACKEND_URL) return;
         try {
-            await fetch(`${BACKEND_URL}/bots/${botId}/rooms/${roomId}/send`, {
+            await fetch(`${this.BACKEND_URL}/bots/${botId}/rooms/${roomId}/send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
