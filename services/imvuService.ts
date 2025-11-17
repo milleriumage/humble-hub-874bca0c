@@ -92,18 +92,25 @@ class ImvuService {
     public onUserLeft(callback: UserLeftCallback) { this.userLeftCallback = callback; }
     
     public async login(botId: string, username: string, password?: string): Promise<boolean> {
+        console.log('[ImvuService] Login called - botId:', botId, 'username:', username);
+        console.log('[ImvuService] Backend URL:', this.BACKEND_URL);
+        
         if (!password) {
             this.log(`[${username}] Login failed: Password is required.`);
+            console.error('[ImvuService] No password provided');
             return false;
         }
 
         if (!this.BACKEND_URL) {
-            this.log(`[${username}] Backend URL not configured.`);
+            this.log(`[${username}] ❌ Backend URL not configured! Set it via: localStorage.setItem('BACKEND_URL', 'https://your-url.vercel.app')`);
+            console.error('[ImvuService] Backend URL is empty!');
+            alert('⚠️ Backend não configurado!\n\n1. Faça deploy no Vercel (veja DEPLOY.md)\n2. Configure a URL no console:\nlocalStorage.setItem("BACKEND_URL", "https://sua-url.vercel.app");\nlocation.reload();');
             return false;
         }
 
         try {
-            this.log(`[${username}] Attempting to login via backend...`);
+            this.log(`[${username}] Connecting to backend: ${this.BACKEND_URL}/login`);
+            console.log('[ImvuService] Sending login request...');
             
             const response = await fetch(`${this.BACKEND_URL}/login`, {
                 method: 'POST',
@@ -113,18 +120,23 @@ class ImvuService {
                 body: JSON.stringify({ username, password })
             });
 
+            console.log('[ImvuService] Response status:', response.status);
             const data = await response.json();
+            console.log('[ImvuService] Response data:', data);
 
             if (!response.ok || !data.success) {
-                this.log(`[${username}] Login failed: ${data.error || 'Unknown error'}`);
+                this.log(`[${username}] ❌ Login failed: ${data.error || 'Unknown error'}`);
+                console.error('[ImvuService] Login failed:', data);
                 return false;
             }
 
-            this.log(`[${username}] Successfully logged in!`);
+            this.log(`[${username}] ✅ Successfully logged in!`);
+            console.log('[ImvuService] Login successful!');
             return true;
         } catch (error: any) {
-            this.log(`[${username}] Login failed: ${error.message}. Is the backend running?`);
-            console.error('Login error:', error);
+            this.log(`[${username}] ❌ Connection error: ${error.message}. Backend may not be running.`);
+            console.error('[ImvuService] Login error:', error);
+            alert(`❌ Erro ao conectar com backend!\n\nErro: ${error.message}\n\nVerifique:\n1. Backend está rodando? (vercel logs)\n2. URL está correta no localStorage?`);
             return false;
         }
     }
